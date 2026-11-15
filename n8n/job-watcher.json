@@ -1,0 +1,100 @@
+{
+  "name": "Job watcher (Ashby boards)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "name": "Every day at 9",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ashby job boards to watch: the slug in jobs.ashbyhq.com/<slug>\n// Replace these examples with the companies you want to follow.\nconst boards = ['ashby', 'linear'];\n\nreturn boards.map(board => ({ json: { board } }));"
+      },
+      "name": "Companies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.ashbyhq.com/posting-api/job-board/{{ $json.board }}",
+        "options": {}
+      },
+      "name": "Get open jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Keep frontend / full-stack / product engineer roles open in Spain, Europe or remote\nconst boards = $('Companies').all();\nconst wanted = /front|full[- ]?stack|product engineer/i;\nconst where = /spain|barcelona|madrid|europe|\\beu\\b|emea|remote/i;\nconst weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;\n\nconst out = [];\n$input.all().forEach((item, i) => {\n  const company = boards[i]?.json.board;\n  for (const job of item.json.jobs || []) {\n    const locations = [job.location, ...(job.secondaryLocations || []).map(s => s.location)];\n    if (!wanted.test(job.title)) continue;\n    if (!locations.some(l => where.test(l || ''))) continue;\n    out.push({\n      json: {\n        company,\n        title: job.title,\n        locations: locations.filter(Boolean).join(', '),\n        url: job.jobUrl,\n        published: (job.publishedAt || '').slice(0, 10),\n        isNew: Date.parse(job.publishedAt) > weekAgo\n      }\n    });\n  }\n});\n\nreturn out.sort((a, b) => b.json.published.localeCompare(a.json.published));"
+      },
+      "name": "Filter my roles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Every day at 9": {
+      "main": [
+        [
+          {
+            "node": "Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Companies": {
+      "main": [
+        [
+          {
+            "node": "Get open jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get open jobs": {
+      "main": [
+        [
+          {
+            "node": "Filter my roles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

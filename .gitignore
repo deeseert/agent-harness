@@ -1,0 +1,13 @@
+# Secrets and local settings
+.env
+.env.*
+.claude/settings.local.json
+
+# OS
+.DS_Store
+
+# Obsidian local state (not content)
+vault/.obsidian/workspace*.json
+
+# Dependencies and build output
+node_modules/
